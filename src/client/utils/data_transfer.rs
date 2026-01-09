@@ -11,7 +11,7 @@ use tokio::{net::TcpStream, sync::broadcast};
 use tracing::info;
 
 #[cfg(feature = "lite_tls")]
-use crate::utils::lite_tls::LiteTlsStream;
+use crate::utils::lite_tls::{LeaveTls, LiteTlsStream};
 
 pub async fn relay_tcp(
     mut inbound: BufferedRecv<TcpStream>,
@@ -56,7 +56,10 @@ pub async fn relay_tcp(
                         return Ok(());
                     }
                     info!("[{}]lite tls handshake succeed", ver.unwrap());
-                    let (mut outbound, _) = outbound.into_inner();
+                    let mut outbound = match outbound.into_inner() {
+                        Ok(tls) => tls.leave(),
+                        Err(_) => return Err(anyhow!("WebSocket cannot leave TLS")),
+                    };
                     let (mut inbound, _) = inbound.into_inner();
 
                     lite_tls_endpoint

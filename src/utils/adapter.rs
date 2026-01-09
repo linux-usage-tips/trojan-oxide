@@ -1,7 +1,8 @@
 use std::{fmt, time::Duration};
 
 use crate::utils::{
-    copy_bidirectional_forked, either_io::EitherIO, udp_copy_bidirectional, TimeoutMonitor,
+    copy_bidirectional_forked, either_io::EitherIO, udp_copy_bidirectional, TimedoutIO,
+    TimeoutMonitor,
 };
 
 use anyhow::Result;
@@ -107,14 +108,17 @@ impl Adapter {
         I: AsyncRead + AsyncWrite + Unpin,
         O: AsyncRead + AsyncWrite + Unpin,
     {
-        let (mut outbound, timeout): _ = match self.timeout {
+        let (mut outbound, timeout) = match self.timeout {
             Some(t) => {
                 let deadline = Duration::from_secs(t as u64);
                 let timeout_monitor = TimeoutMonitor::new(deadline);
                 let outbound = EitherIO::Left(timeout_monitor.watch(outbound));
                 (outbound, Either::Left(timeout_monitor))
             }
-            None => (EitherIO::Right(outbound), Either::Right(pending::<()>())),
+            None => (
+                EitherIO::<TimedoutIO<O>, O>::Right(outbound),
+                Either::Right(pending::<()>()),
+            ),
         };
 
         let duplex_stream: _ = copy_bidirectional_forked(&mut inbound, &mut outbound);
@@ -151,14 +155,17 @@ impl Adapter {
         I: UdpRead + UdpWrite + Unpin,
         O: UdpRead + UdpWrite + Unpin,
     {
-        let (mut outbound, timeout): _ = match self.timeout {
+        let (mut outbound, timeout) = match self.timeout {
             Some(t) => {
                 let deadline = Duration::from_secs(t as u64);
                 let timeout_monitor = TimeoutMonitor::new(deadline);
-                let outbound: _ = EitherIO::Left(timeout_monitor.watch(outbound));
+                let outbound = EitherIO::Left(timeout_monitor.watch(outbound));
                 (outbound, Either::Left(timeout_monitor))
             }
-            None => (EitherIO::Right(outbound), Either::Right(pending::<()>())),
+            None => (
+                EitherIO::<TimedoutIO<O>, O>::Right(outbound),
+                Either::Right(pending::<()>()),
+            ),
         };
 
         use StreamStopReasons::*;

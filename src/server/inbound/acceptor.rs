@@ -20,24 +20,31 @@ type ServerConnectionRequest<I> =
 #[cfg(not(feature = "udp"))]
 type ServerConnectionRequest<I> =
     ConnectionRequest<TcpOption<BufferedRecv<I>>, DummyRequest, BufferedRecv<I>>;
-#[derive(Default)]
 #[cfg_attr(feature = "debug_info", derive(Debug))]
 pub struct TrojanAcceptor<'a> {
     pub host: MixAddrType,
     cursor: usize,
     password_hash: &'a [u8],
+    password_list: &'a Vec<String>,
     buf: Vec<u8>,
     cmd_code: u8,
     fallback_port: u16,
 }
 
 impl<'a> TrojanAcceptor<'a> {
-    pub fn new(password_hash: &'a [u8], fallback_port: u16) -> TrojanAcceptor<'a> {
+    pub fn new(
+        password_hash: &'a [u8],
+        password_list: &'a Vec<String>,
+        fallback_port: u16,
+    ) -> TrojanAcceptor<'a> {
         TrojanAcceptor {
+            host: MixAddrType::None,
+            cursor: 0,
             password_hash,
-            fallback_port,
+            password_list,
             buf: Vec::with_capacity(1024),
-            ..Default::default()
+            cmd_code: 0,
+            fallback_port,
         }
     }
 
@@ -48,7 +55,21 @@ impl<'a> TrojanAcceptor<'a> {
             ));
         }
 
-        if &self.buf[..HASH_LEN] == self.password_hash {
+        let incoming_hash = &self.buf[..HASH_LEN];
+        let mut verified = false;
+
+        if incoming_hash == self.password_hash {
+            verified = true;
+        } else {
+            for p in self.password_list {
+                if incoming_hash.as_ref() == crate::args::password_to_hash_bytes(p).as_slice() {
+                    verified = true;
+                    break;
+                }
+            }
+        }
+
+        if verified {
             self.cursor = HASH_LEN + 2;
             Ok(())
         } else {

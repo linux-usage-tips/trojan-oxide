@@ -68,14 +68,19 @@ fn into_u16(l: &str) -> u16 {
 }
 
 fn password_to_hash(s: &str) -> String {
-    let mut hasher = Sha224::new();
-    hasher.update(s);
-    let h = hasher.finalize();
+    let h = password_to_hash_bytes(s);
     let mut s = String::with_capacity(HASH_LEN);
     for i in h {
         write!(&mut s, "{:02x}", i).unwrap();
     }
     s
+}
+
+pub fn password_to_hash_bytes(s: &str) -> Vec<u8> {
+    let mut hasher = Sha224::new();
+    hasher.update(s);
+    let h = hasher.finalize();
+    h.to_vec()
 }
 
 #[derive(StructOpt, Clone)]
@@ -143,11 +148,85 @@ pub struct Opt {
     /// - q (for quic)
     /// 
     /// - l (for lite-tls)
-    #[cfg(feature = "client")]
     #[structopt(short = "m", long, default_value = "t", parse(from_str = parse_connection_mode))]
     pub connection_mode: ConnectionMode,
 
+    /// configuration file path
+    #[structopt(short = "c", long = "config", parse(from_os_str))]
+    pub config: Option<PathBuf>,
+
+    /// password list from config file
+    #[structopt(skip)]
+    pub password_list: Vec<String>,
+
+    /// websocket config from config file
+    #[structopt(skip)]
+    pub websocket: Option<crate::config::WebsocketConfig>,
+
+    /// use zero copy
+    #[structopt(skip)]
+    pub zero_copy: bool,
+
     pub remote_socket_addr: Option<SocketAddr>,
+}
+
+impl Opt {
+    pub fn merge_config(&mut self, config: crate::config::Config) -> anyhow::Result<()> {
+        if let Some(listen) = config.listen {
+            if let Ok(addr) = listen.parse::<SocketAddr>() {
+                self.server_port = addr.port();
+                self.server_ip = addr.ip().to_string();
+            } else if let Ok(port) = listen.parse::<u16>() {
+                self.server_port = port;
+            }
+        }
+
+        if !config.password.is_empty() {
+            self.password_list = config.password.clone();
+            // For backward compatibility, set the first password as the main one
+            self.password = password_to_hash(&config.password[0]);
+        }
+
+        if let Some(ws) = config.websocket {
+            if ws.enabled {
+                self.websocket = Some(ws);
+            }
+        }
+
+        if let Some(tls) = config.tls.or(config.ssl) {
+            if let Some(cert) = tls.certificate.or(tls.cert) {
+                self.cert = Some(cert);
+            }
+            if let Some(key) = tls.certificate_key.or(tls.key) {
+                self.key = Some(key);
+            }
+            if let Some(sni) = tls.sni {
+                self.server_hostname = sni;
+            }
+        }
+
+        if let Some(zc) = config.zero_copy {
+            self.zero_copy = zc;
+        }
+
+        if let Some(log) = config.log_level {
+            self.log_level = parse_log_level(&log);
+        }
+
+        if let Some(run_type) = config.run_type {
+            self.server = run_type == "server";
+        }
+
+        if let Some(remote_addr) = config.remote_addr {
+            self.server_ip = remote_addr;
+        }
+
+        if let Some(remote_port) = config.remote_port {
+            self.server_port = remote_port;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg_attr(feature = "debug_info", derive(Debug))]

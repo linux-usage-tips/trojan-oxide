@@ -16,6 +16,7 @@ pub use mix_addr::*;
 mod adapter;
 mod either_io;
 pub use adapter::*;
+pub use either_io::EitherIO;
 
 mod timedout_duplex_io;
 pub use timedout_duplex_io::*;
@@ -28,6 +29,9 @@ pub use forked_copy::*;
 
 mod buffered_recv;
 pub use buffered_recv::BufferedRecv;
+
+mod websocket;
+pub use websocket::WebSocketStreamWrapper;
 
 mod wr_tuple;
 pub use wr_tuple::WRTuple;

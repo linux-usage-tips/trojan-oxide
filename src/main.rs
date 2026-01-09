@@ -20,6 +20,7 @@ mod must_choose_between_client_and_server;
 mod must_choose_between_quic_and_tcp_tls;
 
 mod args;
+mod config;
 use args::Opt;
 mod utils;
 
@@ -39,6 +40,12 @@ pub static VEC_TCP_TX: OnceCell<Vec<TcpTx>> = OnceCell::const_new();
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut options = Opt::from_args();
+
+    if let Some(config_path) = &options.config {
+        let config = config::Config::load(config_path)?;
+        options.merge_config(config)?;
+    }
+
     let collector = tracing_subscriber::fmt()
         .with_max_level(options.log_level)
         .with_target(if cfg!(feature = "debug_info") {

@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.15.0", features = ["full"] }
 clap = "2.34.0"
-anyhow = "1.0.51"
+anyhow = "1.0"
 tracing = "0.1.26"
 tracing-subscriber = "0.3.3"
 futures = "0.3"
@@ -17,13 +17,19 @@ thiserror = "1"
 directories = "4.0.1"
 structopt = "0.3.21"
 sha2 = "0.10.0"
-bytes = "1.0.1"
+bytes = "1.1"
 pin-project-lite = "0.2.7"
 lazy_static = "1.4.0"
 rustls-native-certs = { version = "0.6.1" }
 mimalloc = { version = "*", default-features = false }
 fxhash = "0.2.1"
 rustls-pemfile = "*"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio-tungstenite = { version = "0.16", features = ["rustls-tls-webpki-roots"] }
+url = "2.2"
+base64 = "0.13"
+http = "0.2"
 
 [dependencies.quinn]
 version = "0.8.0"

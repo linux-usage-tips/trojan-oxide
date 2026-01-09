@@ -1,14 +1,18 @@
 use crate::{
     args::Opt,
     client::utils::{get_rustls_config, ClientServerConnection},
+    utils::{EitherIO, WebSocketStreamWrapper},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_rustls::{
     rustls::{ClientConfig, RootCertStore, ServerName},
     TlsConnector,
 };
+use url::Url;
+use tokio_tungstenite::client_async;
+use http::Request;
 
 pub async fn tls_client_config() -> ClientConfig {
     get_rustls_config(RootCertStore::empty())
@@ -42,12 +46,47 @@ impl TrojanTcpTlsConnector {
                 stream,
             )
             .await?;
+
+        if let Some(ws_config) = &opt.websocket {
+            let host = if ws_config.hostname.is_empty() {
+                &opt.server_hostname
+            } else {
+                &ws_config.hostname
+            };
+            let url = format!("wss://{}{}", host, ws_config.path);
+            let url = Url::parse(&url).map_err(|e| anyhow!("invalid websocket url: {}", e))?;
+
+            let request = Request::builder()
+                .uri(url.as_str())
+                .header("Host", host)
+                .header("Connection", "Upgrade")
+                .header("Upgrade", "websocket")
+                .header("Sec-WebSocket-Version", "13")
+                .header("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+                .body(())?;
+
+            let (ws_stream, _) = client_async(request, stream)
+                .await
+                .map_err(|e| anyhow!("websocket handshake failed: {}", e))?;
+
+            let wrapped_stream = WebSocketStreamWrapper::new(ws_stream);
+            use ClientServerConnection::*;
+            return Ok(match is_lite {
+                #[cfg(feature = "lite_tls")]
+                true => LiteTLS(EitherIO::Right(wrapped_stream)),
+                #[cfg(feature = "tcp_tls")]
+                false => TcpTLS(EitherIO::Right(wrapped_stream)),
+                #[allow(unreachable_patterns)]
+                _ => unreachable!(),
+            });
+        }
+
         use ClientServerConnection::*;
         return Ok(match is_lite {
             #[cfg(feature = "lite_tls")]
-            true => LiteTLS(stream),
+            true => LiteTLS(EitherIO::Left(stream)),
             #[cfg(feature = "tcp_tls")]
-            false => TcpTLS(stream),
+            false => TcpTLS(EitherIO::Left(stream)),
             #[allow(unreachable_patterns)]
             _ => unreachable!(),
         });

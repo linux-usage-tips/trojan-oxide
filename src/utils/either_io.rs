@@ -46,6 +46,15 @@ where
     }
 }
 
+impl<IO1, IO2> EitherIO<IO1, IO2> {
+    pub fn into_inner(self) -> std::result::Result<IO1, IO2> {
+        match self {
+            EitherIO::Left(io) => Ok(io),
+            EitherIO::Right(io) => Err(io),
+        }
+    }
+}
+
 impl<IO1, IO2> AsyncRead for EitherIO<IO1, IO2>
 where
     IO1: AsyncRead + Unpin,
