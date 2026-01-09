@@ -92,6 +92,14 @@ pub struct Opt {
     #[structopt(short = "h", long = "http_port", default_value = "8888", parse(from_str = into_local_addr))]
     pub local_http_addr: SocketAddr,
 
+    /// local ip address
+    #[structopt(skip)]
+    pub local_ip: String,
+
+    /// local port
+    #[structopt(skip)]
+    pub local_port: u16,
+
     /// client socks5 proxy port
     #[cfg(feature = "client")]
     #[structopt(short = "5", long = "socks5_port", default_value = "8889", parse(from_str = into_local_addr))]
@@ -167,6 +175,14 @@ pub struct Opt {
     #[structopt(skip)]
     pub zero_copy: bool,
 
+    /// fast open
+    #[structopt(skip)]
+    pub fast_open: bool,
+
+    /// tcp keepalive
+    #[structopt(skip)]
+    pub tcp_keepalive: bool,
+
     pub remote_socket_addr: Option<SocketAddr>,
 }
 
@@ -209,12 +225,40 @@ impl Opt {
             self.zero_copy = zc;
         }
 
+        if let Some(fo) = config.fast_open {
+            self.fast_open = fo;
+        }
+
+        if let Some(tk) = config.tcp_keepalive {
+            self.tcp_keepalive = tk;
+        }
+
         if let Some(log) = config.log_level {
             self.log_level = parse_log_level(&log);
         }
 
         if let Some(run_type) = config.run_type {
             self.server = run_type == "server";
+        }
+
+        if let Some(local_addr) = config.local_addr {
+            self.local_ip = local_addr;
+        }
+
+        if let Some(local_port) = config.local_port {
+            self.local_port = local_port;
+            // Update local_http_addr and local_socks5_addr if local_ip is also set
+            let ip = if !self.local_ip.is_empty() {
+                &self.local_ip
+            } else {
+                "127.0.0.1"
+            };
+            if let Ok(addr) = format!("{}:{}", ip, local_port).parse::<SocketAddr>() {
+                self.local_http_addr = addr;
+            }
+            if let Ok(addr) = format!("{}:{}", ip, local_port + 1).parse::<SocketAddr>() {
+                self.local_socks5_addr = addr;
+            }
         }
 
         if let Some(remote_addr) = config.remote_addr {

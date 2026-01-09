@@ -1,0 +1,21 @@
+{
+    "run_type": "server",
+    "listen": "0.0.0.0:443",
+    "password": [
+        "your_secret_password"
+    ],
+    "websocket": {
+        "enabled": true,
+        "path": "/your-websocket-path",
+        "hostname": "yourdomain.com"
+    },
+    "tls": {
+        "cert": "./server.crt",
+        "key": "./server.key",
+        "alpn": ["h2", "http/1.1"]
+    },
+    "fast_open": true,
+    "tcp_keepalive": true,
+    "zero_copy": true,
+    "log_level": "info"
+}
