@@ -142,7 +142,7 @@ pub struct Opt {
 
     /// the password to authenticate connections
     #[structopt(short = "w", long, parse(from_str = password_to_hash))]
-    pub password: String,
+    pub password: Option<String>,
 
     /// port to re-direct unauthenticated connections
     #[cfg(feature = "server")]
@@ -200,7 +200,9 @@ impl Opt {
         if !config.password.is_empty() {
             self.password_list = config.password.clone();
             // For backward compatibility, set the first password as the main one
-            self.password = password_to_hash(&config.password[0]);
+            if self.password.is_none() {
+                self.password = Some(password_to_hash(&config.password[0]));
+            }
         }
 
         if let Some(ws) = config.websocket {

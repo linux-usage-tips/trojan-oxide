@@ -48,11 +48,11 @@ where
     I: AsyncRead + AsyncWrite + LeaveTls + Unpin + Send + 'static,
 {
     let opt = &*context.options;
-    let mut target = TrojanAcceptor::new(
-        opt.password.as_bytes(),
-        &opt.password_list,
-        opt.fallback_port,
-    );
+    let password = opt
+        .password
+        .as_ref()
+        .ok_or_else(|| anyhow!("password is required for server"))?;
+    let mut target = TrojanAcceptor::new(password.as_bytes(), &opt.password_list, opt.fallback_port);
     use ConnectionRequest::*;
     match timeout(
         Duration::from_secs(SERVER_OUTBOUND_CONNECT_TIMEOUT),

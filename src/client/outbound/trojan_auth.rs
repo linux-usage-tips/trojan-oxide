@@ -1,5 +1,5 @@
 use crate::{client::utils::ClientServerConnection, protocol::HASH_LEN, utils::MixAddrType};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::{debug, trace};
 
@@ -7,8 +7,9 @@ pub async fn trojan_auth(
     mode: u8,
     addr: &MixAddrType,
     outbound: &mut ClientServerConnection,
-    password: &String,
+    password: &Option<String>,
 ) -> Result<()> {
+    let password = password.as_ref().ok_or_else(|| anyhow!("password is required"))?;
     match outbound {
         #[cfg(feature = "quic")]
         ClientServerConnection::Quic((out_write, _)) => {
