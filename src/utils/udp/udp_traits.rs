@@ -36,6 +36,7 @@ pub trait UdpWrite {
     ) -> Poll<Result<(), std::io::Error>>;
 }
 
+#[allow(dead_code)]
 pub trait UdpWriteExt: UdpWrite {
     fn shutdown(&mut self) -> Shutdown<'_, Self>
     where

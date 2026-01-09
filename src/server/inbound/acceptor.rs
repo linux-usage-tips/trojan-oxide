@@ -32,7 +32,7 @@ pub struct TrojanAcceptor<'a> {
 }
 
 impl<'a> TrojanAcceptor<'a> {
-    pub fn new(password_hash: &[u8], fallback_port: u16) -> TrojanAcceptor {
+    pub fn new(password_hash: &'a [u8], fallback_port: u16) -> TrojanAcceptor<'a> {
         TrojanAcceptor {
             password_hash,
             fallback_port,

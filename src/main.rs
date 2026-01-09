@@ -1,8 +1,5 @@
 // #![feature(aarch64_target_feature)]
 // #![feature(stdsimd)]
-#![feature(generic_associated_types)]
-#![feature(type_alias_impl_trait)]
-#![feature(associated_type_defaults)]
 
 use mimalloc::MiMalloc;
 #[global_allocator]

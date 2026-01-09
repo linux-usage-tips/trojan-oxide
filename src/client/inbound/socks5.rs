@@ -6,7 +6,7 @@ use crate::{
 
 #[cfg(feature = "udp")]
 use crate::client::utils::Socks5UdpStream;
-use futures::Future;
+use futures::{future::BoxFuture, FutureExt};
 #[cfg(feature = "udp")]
 use std::net::SocketAddr;
 #[cfg(feature = "udp")]
@@ -174,8 +174,6 @@ impl Socks5Request {
 }
 
 impl RequestFromClient for Socks5Request {
-    type Accepting<'a> = impl Future<Output = ClientRequestAcceptResult> + Send;
-
     fn new(inbound: TcpStream) -> Self {
         Self {
             phase: Sock5ParsePhase::P1ClientHello,
@@ -185,7 +183,7 @@ impl RequestFromClient for Socks5Request {
         }
     }
 
-    fn accept<'a>(mut self) -> Self::Accepting<'a> {
-        async { Ok::<_, Error>((self.impl_accept().await?, self.addr)) }
+    fn accept<'a>(mut self) -> BoxFuture<'a, ClientRequestAcceptResult> {
+        async { Ok::<_, Error>((self.impl_accept().await?, self.addr)) }.boxed()
     }
 }

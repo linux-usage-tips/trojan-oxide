@@ -14,8 +14,8 @@ use crate::client::outbound::quic::*;
 #[cfg(any(feature = "tcp_tls", feature = "lite_tls"))]
 use crate::client::outbound::tcp_tls::*;
 use anyhow::Result;
-use futures::TryFutureExt;
-use std::{future::Future, net::SocketAddr, sync::Arc};
+use futures::{future::BoxFuture, TryFutureExt};
+use std::{net::SocketAddr, sync::Arc};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{broadcast, oneshot},
@@ -25,10 +25,8 @@ use tracing::*;
 pub type ClientRequestAcceptResult = Result<(ClientConnectionRequest, MixAddrType)>;
 
 pub trait RequestFromClient {
-    type Accepting<'a>: Future<Output = ClientRequestAcceptResult> + Send;
-
     fn new(inbound: TcpStream) -> Self;
-    fn accept<'a>(self) -> Self::Accepting<'a>;
+    fn accept<'a>(self) -> BoxFuture<'a, ClientRequestAcceptResult>;
 }
 
 pub async fn user_endpoint_listener<Acceptor>(

@@ -40,11 +40,11 @@ mod glommio_utils;
 #[cfg(all(target_os = "linux", feature = "zio"))]
 pub use glommio_utils::*;
 
-#[derive(Debug, err_derive::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ParserError {
-    #[error(display = "ParserError Incomplete: {:?}", _0)]
+    #[error("ParserError Incomplete: {0:?}")]
     Incomplete(String),
-    #[error(display = "ParserError Invalid: {:?}", _0)]
+    #[error("ParserError Invalid: {0:?}")]
     Invalid(String),
 }
 

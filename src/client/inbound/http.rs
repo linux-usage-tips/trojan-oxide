@@ -4,8 +4,9 @@ use crate::{
     utils::{MixAddrType, ParserError},
 };
 
-use anyhow::{Error, Result};
-use futures::Future;
+use anyhow::{Error, Result as AnyResult};
+use futures::{future::BoxFuture, FutureExt};
+use std::result::Result as StdResult;
 // use futures::future;
 // use std::io::IoSlice;
 // use std::pin::Pin;
@@ -28,7 +29,7 @@ const HEADER0: &'static [u8] = b"GET / HTTP/1.1\r\nHost: ";
 const HEADER1: &'static [u8] = b"\r\nConnection: keep-alive\r\n\r\n";
 
 impl HttpRequest {
-    fn set_stream_type(&mut self, buf: &Vec<u8>) -> Result<(), ParserError> {
+    fn set_stream_type(&mut self, buf: &Vec<u8>) -> StdResult<(), ParserError> {
         if buf.len() < 4 {
             return Err(ParserError::Incomplete(
                 "HttpRequest::set_stream_type".into(),
@@ -56,7 +57,7 @@ impl HttpRequest {
         return Err(ParserError::Invalid("HttpRequest::set_stream_type".into()));
     }
 
-    fn set_host(&mut self, buf: &Vec<u8>) -> Result<(), ParserError> {
+    fn set_host(&mut self, buf: &Vec<u8>) -> StdResult<(), ParserError> {
         #[cfg(feature = "debug_info")]
         debug!("set_host entered");
         while self.cursor < buf.len() && buf[self.cursor] == b' ' {
@@ -86,7 +87,7 @@ impl HttpRequest {
         return Ok(());
     }
 
-    fn parse(&mut self, buf: &mut Vec<u8>) -> Result<(), ParserError> {
+    fn parse(&mut self, buf: &mut Vec<u8>) -> StdResult<(), ParserError> {
         #[cfg(feature = "debug_info")]
         debug!("parsing: {:?}", String::from_utf8(buf.clone()));
         if self.cursor == 0 {
@@ -127,7 +128,7 @@ impl HttpRequest {
         Err(ParserError::Incomplete("HttpRequest::parse".into()))
     }
 
-    async fn impl_accept(&mut self) -> Result<ClientConnectionRequest> {
+    async fn impl_accept(&mut self) -> AnyResult<ClientConnectionRequest> {
         let mut buffer = Vec::with_capacity(200);
         let mut inbound = self.inbound.take().unwrap();
         loop {
@@ -190,10 +191,8 @@ impl HttpRequest {
 }
 
 impl RequestFromClient for HttpRequest {
-    type Accepting<'a> = impl Future<Output = ClientRequestAcceptResult> + Send;
-
-    fn accept<'a>(mut self) -> Self::Accepting<'a> {
-        async move { Ok::<_, Error>((self.impl_accept().await?, self.addr)) }
+    fn accept<'a>(mut self) -> BoxFuture<'a, ClientRequestAcceptResult> {
+        async move { Ok::<_, Error>((self.impl_accept().await?, self.addr)) }.boxed()
     }
 
     fn new(inbound: TcpStream) -> Self {

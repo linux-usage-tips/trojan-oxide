@@ -1,0 +1,72 @@
+    Checking trojan-oxide v0.1.0 (/home/de/Pass-Gfw/trojan-oxide)
+error[E0554]: `#![feature]` may not be used on the stable release channel
+ --> src/main.rs:3:1
+  |
+3 | #![feature(generic_associated_types)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the attribute
+  |
+  = help: the feature `generic_associated_types` has been stable since `1.65.0` and no longer requires an attribute to enable
+
+error[E0554]: `#![feature]` may not be used on the stable release channel
+ --> src/main.rs:4:1
+  |
+4 | #![feature(type_alias_impl_trait)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0554]: `#![feature]` may not be used on the stable release channel
+ --> src/main.rs:5:1
+  |
+5 | #![feature(associated_type_defaults)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0658]: `impl Trait` in associated types is unstable
+   --> src/client/inbound/http.rs:193:26
+    |
+193 |     type Accepting<'a> = impl Future<Output = ClientRequestAcceptResult> + Send;
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: see issue #63063 <https://github.com/rust-lang/rust/issues/63063> for more information
+
+error[E0658]: `impl Trait` in associated types is unstable
+   --> src/client/inbound/socks5.rs:177:26
+    |
+177 |     type Accepting<'a> = impl Future<Output = ClientRequestAcceptResult> + Send;
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: see issue #63063 <https://github.com/rust-lang/rust/issues/63063> for more information
+
+warning: unused import: `RequestFromClient`
+ --> src/client/inbound/mod.rs:6:71
+  |
+6 | pub use listener::{user_endpoint_listener, ClientRequestAcceptResult, RequestFromClient};
+  |                                                                       ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `UdpWriteExt` and `copy_udp::copy_udp`
+  --> src/utils/udp/mod.rs:9:5
+   |
+ 9 |     copy_udp::copy_udp,
+   |     ^^^^^^^^^^^^^^^^^^
+...
+13 |     udp_traits::{UdpRead, UdpWrite, UdpWriteExt},
+   |                                     ^^^^^^^^^^^
+
+warning: unused import: `tls_relay_buffer::LeaveTlsMode`
+ --> src/utils/lite_tls/mod.rs:8:9
+  |
+8 | pub use tls_relay_buffer::LeaveTlsMode;
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: the feature `generic_associated_types` has been stable since 1.65.0 and no longer requires an attribute to enable
+ --> src/main.rs:3:12
+  |
+3 | #![feature(generic_associated_types)]
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(stable_features)]` on by default
+
+Some errors have detailed explanations: E0554, E0658.
+For more information about an error, try `rustc --explain E0554`.
+warning: `trojan-oxide` (bin "trojan-oxide") generated 4 warnings
+error: could not compile `trojan-oxide` (bin "trojan-oxide") due to 5 previous errors; 4 warnings emitted
