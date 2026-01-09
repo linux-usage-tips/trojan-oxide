@@ -87,11 +87,23 @@ pub async fn handle_tcp_tls_connection(
     debug!("TLS handshake completed. ALPN: {:?}", alpn);
 
     if let Some(ws_config) = &context.options.websocket {
-        let ws_path = ws_config.path.clone();
+        let ws_path = if ws_config.path.starts_with('/') {
+            ws_config.path.clone()
+        } else {
+            format!("/{}", ws_config.path)
+        };
         let callback = move |req: &Request, response: Response| {
-            if req.uri().path() == ws_path {
+            let req_path = req.uri().path();
+            info!("WebSocket handshake attempt: Path={}, Host={:?}, URI={}", 
+                req_path,
+                req.headers().get("host"),
+                req.uri()
+            );
+            if req_path == ws_path || req_path.trim_end_matches('/') == ws_path.trim_end_matches('/') {
+                debug!("WebSocket handshake path match: {}", req_path);
                 Ok(response)
             } else {
+                error!("WebSocket handshake path mismatch: expected '{}', got '{}'", ws_path, req_path);
                 Err(Response::builder()
                     .status(http::StatusCode::NOT_FOUND)
                     .body(None)

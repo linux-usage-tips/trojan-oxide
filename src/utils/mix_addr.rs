@@ -48,6 +48,7 @@ impl MixAddrType {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_host(&self) -> (&str, u16) {
         match self {
             MixAddrType::Hostname((host, port)) => (&*host, *port),

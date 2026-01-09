@@ -57,7 +57,12 @@ impl TrojanTcpTlsConnector {
             } else {
                 &ws_config.hostname
             };
-            let url = format!("wss://{}{}", host, ws_config.path);
+            let ws_path = if ws_config.path.starts_with('/') {
+                ws_config.path.clone()
+            } else {
+                format!("/{}", ws_config.path)
+            };
+            let url = format!("wss://{}{}", host, ws_path);
             let url = Url::parse(&url).map_err(|e| anyhow!("invalid websocket url: {}", e))?;
 
             let request = Request::builder()

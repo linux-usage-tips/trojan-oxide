@@ -12,7 +12,8 @@ use std::result::Result as StdResult;
 // use std::pin::Pin;
 use tokio::io::*;
 use tokio::net::TcpStream;
-use tracing::*;
+#[cfg(feature = "debug_info")]
+use tracing::{debug, error};
 
 use crate::client::utils::ClientConnectionRequest;
 
@@ -25,167 +26,103 @@ pub struct HttpRequest {
     inbound: Option<TcpStream>,
 }
 
-const HEADER0: &'static [u8] = b"GET / HTTP/1.1\r\nHost: ";
-const HEADER1: &'static [u8] = b"\r\nConnection: keep-alive\r\n\r\n";
-
 impl HttpRequest {
-    fn set_stream_type(&mut self, buf: &Vec<u8>) -> StdResult<(), ParserError> {
-        if buf.len() < 4 {
-            return Err(ParserError::Incomplete(
-                "HttpRequest::set_stream_type".into(),
-            ));
+    fn parse(&mut self, buf: &[u8]) -> StdResult<(), ParserError> {
+        let header_end = buf.windows(4).position(|w| w == b"\r\n\r\n");
+        if header_end.is_none() {
+            return Err(ParserError::Incomplete("header incomplete".into()));
         }
+        let header_end = header_end.unwrap() + 4;
+        let header = &buf[..header_end];
 
-        if &buf[..4] == b"GET " {
-            self.is_https = false;
-            self.cursor = 4;
-            return Ok(());
-        }
-
-        if buf.len() < 8 {
-            return Err(ParserError::Incomplete(
-                "HttpRequest::set_stream_type".into(),
-            ));
-        }
-
-        if &buf[..8] == b"CONNECT " {
-            self.is_https = true;
-            self.cursor = 8;
-            return Ok(());
-        }
-
-        return Err(ParserError::Invalid("HttpRequest::set_stream_type".into()));
-    }
-
-    fn set_host(&mut self, buf: &Vec<u8>) -> StdResult<(), ParserError> {
         #[cfg(feature = "debug_info")]
-        debug!("set_host entered");
-        while self.cursor < buf.len() && buf[self.cursor] == b' ' {
-            self.cursor += 1;
+        debug!("parsing header: {:?}", String::from_utf8_lossy(header));
+
+        let first_space = header.iter().position(|&b| b == b' ');
+        if let Some(pos) = first_space {
+            let method = &header[..pos];
+            self.is_https = method == b"CONNECT";
+            self.cursor = pos + 1;
+        } else {
+            return Err(ParserError::Invalid("Invalid HTTP method".into()));
         }
-        if !self.is_https {
-            if self.cursor + 7 < buf.len() {
-                if &buf[self.cursor..self.cursor + 7].to_ascii_lowercase()[..] == b"http://" {
-                    self.cursor += 7;
-                }
-            } else {
-                return Err(ParserError::Incomplete("HttpRequest::set_host".into()));
+
+        // 1. Try to extract host from request line
+        let mut pos = self.cursor;
+        while pos < header.len() && header[pos] == b' ' {
+            pos += 1;
+        }
+        
+        let mut host_start = pos;
+        if !self.is_https && header[pos..].to_ascii_lowercase().starts_with(b"http://") {
+            host_start += 7;
+        }
+        
+        let mut host_end = host_start;
+        while host_end < header.len() && header[host_end] != b' ' && header[host_end] != b'/' && header[host_end] != b'\r' {
+            host_end += 1;
+        }
+
+        if host_end > host_start {
+            if let Ok(addr) = MixAddrType::from_http_header(self.is_https, &header[host_start..host_end]) {
+                self.addr = addr;
+                return Ok(());
             }
         }
 
-        let start = self.cursor;
-        let mut end = start;
-        while end < buf.len() && buf[end] != b' ' && buf[end] != b'/' {
-            end += 1;
-        }
-
-        if end == buf.len() {
-            return Err(ParserError::Incomplete("HttpRequest::set_host".into()));
-        }
-
-        self.addr = MixAddrType::from_http_header(self.is_https, &buf[start..end])?;
-        return Ok(());
-    }
-
-    fn parse(&mut self, buf: &mut Vec<u8>) -> StdResult<(), ParserError> {
-        #[cfg(feature = "debug_info")]
-        debug!("parsing: {:?}", String::from_utf8(buf.clone()));
-        if self.cursor == 0 {
-            self.set_stream_type(buf)?;
-        }
-
-        #[cfg(feature = "debug_info")]
-        debug!("stream is https: {}", self.is_https);
-
-        if self.addr.is_none() {
-            match self.set_host(buf) {
-                Ok(_) => {
-                    #[cfg(feature = "debug_info")]
-                    debug!("stream target host: {:?}", self.addr);
-                }
-                err @ Err(_) => {
-                    #[cfg(feature = "debug_info")]
-                    debug!("stream target host err: {:?}", err);
-                    return err;
+        // 2. Try to extract host from Host header
+        let header_str = String::from_utf8_lossy(header);
+        for line in header_str.lines() {
+            let lower = line.to_ascii_lowercase();
+            if lower.trim().starts_with("host:") {
+                let host_val = line.splitn(2, ':').nth(1).unwrap_or("").trim();
+                if let Ok(addr) = MixAddrType::from_http_header(self.is_https, host_val.as_bytes()) {
+                    self.addr = addr;
+                    return Ok(());
                 }
             }
         }
 
-        // `integrity` check
-        if &buf[buf.len() - 4..] == b"\r\n\r\n" {
-            #[cfg(feature = "debug_info")]
-            debug!("integrity test passed");
-            return Ok(());
-        }
-
-        for i in 0..4 {
-            buf[i] = buf[buf.len() - 4 + i];
-        }
-
-        unsafe {
-            buf.set_len(4);
-        }
-        Err(ParserError::Incomplete("HttpRequest::parse".into()))
+        Err(ParserError::Invalid("No host found in request line or Host header".into()))
     }
 
     async fn impl_accept(&mut self) -> AnyResult<ClientConnectionRequest> {
-        let mut buffer = Vec::with_capacity(200);
+        let mut buffer = Vec::with_capacity(1024);
         let mut inbound = self.inbound.take().unwrap();
         loop {
             let read = inbound.read_buf(&mut buffer).await?;
-            if read != 0 {
-                match self.parse(&mut buffer) {
-                    Ok(_) => {
-                        #[cfg(feature = "debug_info")]
-                        debug!("http request parsed");
-                        break;
-                    }
-                    Err(e @ ParserError::Invalid(_)) => {
-                        return Err(Error::new(e));
-                    }
-                    _ => (),
-                }
-            } else {
+            if read == 0 {
                 return Err(Error::new(ParserError::Invalid(
                     "HttpRequest::accept unable to accept before EOF".into(),
                 )));
             }
+            match self.parse(&buffer) {
+                Ok(_) => {
+                    #[cfg(feature = "debug_info")]
+                    debug!("http request parsed successfully, target: {:?}", self.addr);
+                    break;
+                }
+                Err(ParserError::Incomplete(_)) => continue,
+                Err(e) => return Err(Error::new(e)),
+            }
         }
 
-        let http_p0 = if self.is_https {
+        let extension = if self.is_https {
             inbound
                 .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
                 .await?;
             inbound.flush().await?;
-            debug!("https packet 0 sent");
+            #[cfg(feature = "debug_info")]
+            debug!("https CONNECT tunnel established");
             None
         } else {
-            let (host, port) = self.addr.as_host();
-            Some(
-                [
-                    HEADER0,
-                    host.as_bytes(),
-                    &[':' as u8],
-                    port.to_string().as_bytes(),
-                    HEADER1,
-                ]
-                .concat(),
-            )
-            //     let bufs = [
-            //         IoSlice::new(HEADER0),
-            //         IoSlice::new(self.host_raw.as_bytes()),
-            //         IoSlice::new(HEADER1),
-            //     ];
-
-            //     future::poll_fn(|cx| writer.as_mut().poll_write_vectored(cx, &bufs[..]))
-            //         .await
-            //         .map_err(|e| Box::new(e))?;
-
-            //     debug!("http packet 0 sent");
+            #[cfg(feature = "debug_info")]
+            debug!("plain http request forwarding, buffer size: {}", buffer.len());
+            Some(buffer)
         };
 
         Ok(ConnectionRequest::TCP(new_client_tcp_stream(
-            inbound, http_p0,
+            inbound, extension,
         )))
     }
 }
