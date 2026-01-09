@@ -40,7 +40,7 @@ where
     let service_listener = TcpListener::bind(&service_addr).await?;
 
     #[cfg(any(feature = "tcp_tls", feature = "lite_tls"))]
-    let tls_config = Arc::new(tls_client_config().await);
+    let tls_config = Arc::new(tls_client_config(&context.options).await);
 
     #[cfg(feature = "quic")]
     let (task_tx, task_rx) = tokio::sync::mpsc::channel(20);

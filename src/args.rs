@@ -137,7 +137,7 @@ pub struct Opt {
 
     /// TLS certificate in PEM format
     #[cfg(feature = "server")]
-    #[structopt(parse(from_os_str), short = "c", long = "cert", requires = "key")]
+    #[structopt(parse(from_os_str), long = "cert", requires = "key")]
     pub cert: Option<PathBuf>,
 
     /// the password to authenticate connections
@@ -183,6 +183,10 @@ pub struct Opt {
     #[structopt(skip)]
     pub tcp_keepalive: bool,
 
+    /// ALPN protocols
+    #[structopt(skip)]
+    pub alpn: Vec<String>,
+
     pub remote_socket_addr: Option<SocketAddr>,
 }
 
@@ -211,17 +215,20 @@ impl Opt {
             }
         }
 
-        if let Some(tls) = config.tls.or(config.ssl) {
-            if let Some(cert) = tls.certificate.or(tls.cert) {
-                self.cert = Some(cert);
-            }
-            if let Some(key) = tls.certificate_key.or(tls.key) {
-                self.key = Some(key);
-            }
-            if let Some(sni) = tls.sni {
-                self.server_hostname = sni;
-            }
+    if let Some(tls) = config.tls.or(config.ssl) {
+        if let Some(cert) = tls.certificate.or(tls.cert) {
+            self.cert = Some(cert);
         }
+        if let Some(key) = tls.certificate_key.or(tls.key) {
+            self.key = Some(key);
+        }
+        if let Some(sni) = tls.sni {
+            self.server_hostname = sni;
+        }
+        if let Some(alpn) = tls.alpn {
+            self.alpn = alpn;
+        }
+    }
 
         if let Some(zc) = config.zero_copy {
             self.zero_copy = zc;
@@ -241,6 +248,10 @@ impl Opt {
 
         if let Some(run_type) = config.run_type {
             self.server = run_type == "server";
+        }
+
+        if let Some(protocol) = config.protocol {
+            self.connection_mode = parse_connection_mode(&protocol);
         }
 
         if let Some(local_addr) = config.local_addr {

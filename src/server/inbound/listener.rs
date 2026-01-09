@@ -63,7 +63,7 @@ pub async fn tcp_tls_listener(mut context: TrojanContext) -> Result<()> {
     info!("listening on [tcp]{}", listener.local_addr()?);
     loop {
         try_recv!(broadcast, context.shutdown);
-        let (stream, _peer_addr) = match listener.accept().await {
+        let (stream, peer_addr) = match listener.accept().await {
             Ok(res) => res,
             Err(err) => {
                 error!("failed to listen to tcp: {:?}", err);
@@ -74,13 +74,14 @@ pub async fn tcp_tls_listener(mut context: TrojanContext) -> Result<()> {
                 continue;
             }
         };
+        debug!("accepted tcp connection from {}", peer_addr);
         stream.set_nodelay(true)?;
         tokio::spawn(
             handle_tcp_tls_connection(
                 context.clone_with_signal(shutdown_tx.subscribe()),
                 acceptor.accept(stream),
             )
-            .unwrap_or_else(move |e| error!("[tcp]failed to handle connection: {:#}", e)),
+            .unwrap_or_else(move |e| error!("[tcp]failed to handle connection from {}: {:#}", peer_addr, e)),
         );
     }
     Ok(())

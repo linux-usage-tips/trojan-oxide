@@ -14,8 +14,12 @@ use url::Url;
 use tokio_tungstenite::client_async;
 use http::Request;
 
-pub async fn tls_client_config() -> ClientConfig {
-    get_rustls_config(RootCertStore::empty())
+pub async fn tls_client_config(options: &Opt) -> ClientConfig {
+    let mut config = get_rustls_config(RootCertStore::empty());
+    if !options.alpn.is_empty() {
+        config.alpn_protocols = options.alpn.iter().map(|s| s.as_bytes().to_vec()).collect();
+    }
+    config
 }
 
 pub struct TrojanTcpTlsConnector {

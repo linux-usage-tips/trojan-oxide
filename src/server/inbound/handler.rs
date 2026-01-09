@@ -1,10 +1,11 @@
 use crate::{args::TrojanContext, server::outbound::handle_outbound, utils::WebSocketStreamWrapper};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use tokio::{
     sync::broadcast,
     time::{timeout, Duration},
 };
 use tokio_rustls::Accept;
+use tracing::{debug, error, info};
 #[cfg(feature = "quic")]
 use {
     futures::{StreamExt, TryFutureExt},
@@ -69,9 +70,21 @@ pub async fn handle_tcp_tls_connection(
     context: TrojanContext,
     incoming: Accept<TcpStream>,
 ) -> Result<()> {
-    let stream = timeout(Duration::from_secs(5), incoming)
-        .await
-        .with_context(|| anyhow!("failed to accept TlsStream"))??;
+    let stream = match timeout(Duration::from_secs(5), incoming).await {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
+            error!("TLS accept failed: {:#}", e);
+            return Err(anyhow::Error::new(e));
+        }
+        Err(_) => {
+            error!("TLS accept timed out");
+            return Err(anyhow!("TLS accept timed out"));
+        }
+    };
+
+    let (_, session) = stream.get_ref();
+    let alpn = session.alpn_protocol().map(|p| String::from_utf8_lossy(p).to_string());
+    debug!("TLS handshake completed. ALPN: {:?}", alpn);
 
     if let Some(ws_config) = &context.options.websocket {
         let ws_path = ws_config.path.clone();

@@ -16,6 +16,11 @@ pub async fn tls_server_config(options: &Opt) -> Result<ServerConfig> {
         .with_no_client_auth()
         .with_single_cert(cert, key)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+
+    if !options.alpn.is_empty() {
+        config.alpn_protocols = options.alpn.iter().map(|s| s.as_bytes().to_vec()).collect();
+    }
+
     config.ticketer = Ticketer::new()?;
     Ok(config)
 }
