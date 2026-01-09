@@ -216,11 +216,11 @@ async fn load_cert(options: &Opt, mut roots: RootCertStore) -> Result<RootCertSt
             }
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
-                    info!("local server certificate not found");
+                    info!("local server certificate not found, continuing with system certificates");
                 } else {
                     error!("failed to open local server certificate: {:#}", e);
+                    return Err(anyhow::Error::new(e));
                 }
-                return Err(anyhow::Error::new(e));
             }
         }
     }

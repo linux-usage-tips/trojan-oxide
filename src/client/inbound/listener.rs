@@ -45,10 +45,12 @@ where
     #[cfg(feature = "quic")]
     let (task_tx, task_rx) = tokio::sync::mpsc::channel(20);
     #[cfg(feature = "quic")]
-    tokio::spawn(quic_connection_daemon(
-        context.clone_with_signal(shutdown),
-        task_rx,
-    ));
+    if context.options.connection_mode == ConnectionMode::Quic {
+        tokio::spawn(quic_connection_daemon(
+            context.clone_with_signal(shutdown),
+            task_rx,
+        ));
+    }
 
     loop {
         try_recv!(broadcast, context.shutdown);

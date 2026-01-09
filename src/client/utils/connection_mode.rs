@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "debug_info", derive(Debug))]
 pub enum ConnectionMode {
     #[cfg(feature = "tcp_tls")]
